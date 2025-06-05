@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>海边日出动画</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1a237e, #0d47a1);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+        
+        .container {
+            position: relative;
+            width: 100%;
+            max-width: 900px;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        canvas {
+            background: linear-gradient(to bottom, #0d47a1, #1a237e);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            display: block;
+            margin: 0 auto;
+            transition: all 0.3s ease;
+        }
+        
+        canvas:hover {
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.7);
+            transform: translateY(-5px);
+        }
+        
+        .title {
+            color: #fff;
+            text-shadow: 0 0 15px rgba(255, 255, 255, 0.7);
+            margin-bottom: 25px;
+            font-size: 2.8rem;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+        }
+        
+        .controls {
+            margin-top: 25px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #ff9800, #ff5722);
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            min-width: 150px;
+        }
+        
+        button:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .progress-container {
+            width: 80%;
+            max-width: 700px;
+            height: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            margin: 25px auto;
+            overflow: hidden;
+            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.3);
+        }
+        
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #ff5722, #ffc107);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+        
+        .status {
+            color: #e0f7fa;
+            font-size: 1.1rem;
+            margin-top: 10px;
+            font-weight: 500;
+        }
+        
+        .sun-position {
+            color: #ffd700;
+            font-size: 1.2rem;
+            margin-top: 15px;
+            font-weight: 600;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">海边日出动画</h1>
+        <canvas id="sunriseCanvas" width="800" height="500"></canvas>
+        
+        <div class="progress-container">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        
+        <div class="sun-position" id="sunPosition">太阳位置: 海平面下</div>
+        
+        <div class="controls">
+            <button id="startBtn">开始日出</button>
+            <button id="resetBtn">重置场景</button>
+        </div>
+        
+        <div class="status" id="status">当前状态: 等待开始...</div>
+    </div>
+
+    <script>
+        // 获取Canvas元素和上下文
+        const canvas = document.getElementById('sunriseCanvas');
+        const ctx = canvas.getContext('2d');
+        const progressBar = document.getElementById('progressBar');
+        const sunPosition = document.getElementById('sunPosition');
+        const statusText = document.getElementById('status');
+        
+        // 动画控制变量
+        let animationId = null;
+        let isAnimating = false;
+        let startTime = null;
+        const animationDuration = 12000; // 12秒动画
+        
+        // 太阳位置和属性
+        const sunRadius = 45;
+        let sunX = canvas.width / 2;
+        let sunY = canvas.height + sunRadius;
+        const finalSunY = canvas.height / 3;
+        
+        // 云朵位置
+        const clouds = [
+            { x: 100, y: 80, speed: 0.3, size: 1.0 },
+            { x: 400, y: 60, speed: 0.5, size: 1.2 },
+            { x: 650, y: 100, speed: 0.4, size: 0.9 },
+            { x: 300, y: 120, speed: 0.6, size: 0.8 },
+            { x: 500, y: 150, speed: 0.4, size: 1.1 }
+        ];
+        
+        // 初始化函数
+        function init() {
+            sunY = canvas.height + sunRadius;
+            progressBar.style.width = '0%';
+            sunPosition.textContent = '太阳位置: 海平面下';
+            statusText.textContent = '当前状态: 等待开始...';
+            isAnimating = false;
+            drawScene(0);
+        }
+        
+        // 绘制整个场景
+        function drawScene(progress) {
+            // 清除画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制天空渐变
+            drawSkyGradient(progress);
+            
+            // 绘制太阳
+            drawSun(progress);
+            
+            // 绘制云朵
+            drawClouds(progress);
+            
+            // 绘制海洋
+            drawOcean(progress);
+            
+            // 更新进度条
+            progressBar.style.width = `${progress * 100}%`;
+            
+            // 更新太阳位置文本
+            updateSunPositionText(progress);
+        }
+        
+        // 绘制天空渐变
+        function drawSkyGradient(progress) {
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            
+            // 根据动画进度改变天空颜色
+            const startColor = `rgba(25, 25, 112, ${1 - progress * 0.8})`;
+            const midColor = `rgba(205, 92, 92, ${progress * 0.6})`;
+            const endColor = `rgba(135, 206, 235, ${progress})`;
+            
+            gradient.addColorStop(0, startColor);
+            gradient.addColorStop(0.4, midColor);
+            gradient.addColorStop(1, endColor);
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        
+        // 绘制太阳
+        function drawSun(progress) {
+            // 太阳位置插值
+            sunY = canvas.height + sunRadius - (canvas.height + sunRadius - finalSunY) * progress;
+            
+            // 太阳发光效果
+            const glow = ctx.createRadialGradient(
+                sunX, sunY, sunRadius,
+                sunX, sunY, sunRadius * 4
+            );
+            glow.addColorStop(0, `rgba(255, 215, 0, ${0.8 + progress * 0.2})`);
+            glow.addColorStop(1, `rgba(255, 215, 0, 0)`);
+            
+            ctx.beginPath();
+            ctx.arc(sunX, sunY, sunRadius * 4, 0, Math.PI * 2);
+            ctx.fillStyle = glow;
+            ctx.fill();
+            
+            // 绘制太阳主体
+            ctx.beginPath();
+            ctx.arc(sunX, sunY, sunRadius, 0, Math.PI * 2);
+            
+            // 太阳颜色变化（从深红到金黄）
+            const sunColor = `rgb(${255}, ${215 - (1 - progress) * 100}, ${progress * 100})`;
+            ctx.fillStyle = sunColor;
+            ctx.fill();
+        }
+        
+        // 绘制云朵
+        function drawClouds(progress) {
+            clouds.forEach(cloud => {
+                // 更新云朵位置
+                cloud.x += cloud.speed;
+                if (cloud.x > canvas.width + 100) cloud.x = -100;
+                
+                // 云朵透明度随太阳升高而增加
+                const cloudAlpha = 0.5 + progress * 0.5;
+                ctx.fillStyle = `rgba(255, 255, 255, ${cloudAlpha})`;
+                
+                // 绘制云朵
+                ctx.beginPath();
+                ctx.arc(cloud.x, cloud.y, 20 * cloud.size, 0, Math.PI * 2);
+                ctx.arc(cloud.x + 20 * cloud.size, cloud.y - 8 * cloud.size, 18 * cloud.size, 0, Math.PI * 2);
+                ctx.arc(cloud.x + 40 * cloud.size, cloud.y, 16 * cloud.size, 0, Math.PI * 2);
+                ctx.arc(cloud.x - 15 * cloud.size, cloud.y + 5 * cloud.size, 15 * cloud.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+        
+        // 绘制海洋
+        function drawOcean(progress) {
+            const oceanHeight = canvas.height / 3.5;
+            const oceanY = canvas.height - oceanHeight;
+            
+            // 创建海洋渐变
+            const oceanGradient = ctx.createLinearGradient(0, oceanY, 0, canvas.height);
+            
+            // 海洋颜色随日出变化
+            const oceanStartColor = `rgba(0, 71, 171, ${0.8 + progress * 0.2})`;
+            const oceanEndColor = `rgba(25, 25, 112, ${1 - progress * 0.2})`;
+            
+            oceanGradient.addColorStop(0, oceanStartColor);
+            oceanGradient.addColorStop(1, oceanEndColor);
+            
+            ctx.fillStyle = oceanGradient;
+            ctx.fillRect(0, oceanY, canvas.width, oceanHeight);
+            
+            // 绘制海平面
+            ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 + progress * 0.2})`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, oceanY);
+            ctx.lineTo(canvas.width, oceanY);
+            ctx.stroke();
+        }
+        
+        // 更新太阳位置文本
+        function updateSunPositionText(progress) {
+            if (progress < 0.1) {
+                sunPosition.textContent = '太阳位置: 海平面下';
+            } else if (progress < 0.3) {
+                sunPosition.textContent = '太阳位置: 正在升起';
+            } else if (progress < 0.6) {
+                sunPosition.textContent = '太阳位置: 半空中';
+            } else if (progress < 0.9) {
+                sunPosition.textContent = '太阳位置: 接近高空';
+            } else {
+                sunPosition.textContent = '太阳位置: 高空';
+            }
+        }
+        
+        // 动画循环
+        function animate(timestamp) {
+            if (!startTime) startTime = timestamp;
+            
+            const elapsed = timestamp - startTime;
+            let progress = Math.min(elapsed / animationDuration, 1);
+            
+            // 应用缓动函数使运动更自然
+            progress = easeInOutCubic(progress);
+            
+            drawScene(progress);
+            
+            if (progress < 1) {
+                animationId = requestAnimationFrame(animate);
+                statusText.textContent = `当前状态: 日出中 (${Math.round(progress * 100)}%)`;
+            } else {
+                isAnimating = false;
+                statusText.textContent = '当前状态: 日出完成！';
+            }
+        }
+        
+        // 缓动函数
+        function easeInOutCubic(t) {
+            return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        }
+        
+        // 开始动画
+        function startAnimation() {
+            if (isAnimating) return;
+            
+            isAnimating = true;
+            startTime = null;
+            statusText.textContent = '当前状态: 开始日出...';
+            animationId = requestAnimationFrame(animate);
+        }
+        
+        // 重置动画
+        function resetAnimation() {
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+            isAnimating = false;
+            init();
+        }
+        
+        // 添加按钮事件监听
+        document.getElementById('startBtn').addEventListener('click', startAnimation);
+        document.getElementById('resetBtn').addEventListener('click', resetAnimation);
+        
+        // 初始化场景
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>    
